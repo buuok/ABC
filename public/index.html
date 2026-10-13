@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>声音统一</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e3e2dd; --accent:#2f6fdb; --accent-soft:#e8effc; --good:#1a8a4a; --bad:#c0392b; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ececea; --muted:#9c9c96; --card:#1f1f1e; --line:#33332f; --accent:#6b9cf0; --accent-soft:#22314d; --good:#4cc27e; --bad:#ec7063; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+  h2 .n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; flex: none; }
+  p.sub { color: var(--muted); margin: 0 0 20px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+  label { display: inline-flex; gap: 8px; align-items: center; }
+  button, select { font: inherit; padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+  select { max-width: 100%; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.big { font-size: 17px; padding: 10px 28px; }
+  button.link { border: 0; background: none; padding: 0; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.ref td { background: var(--accent-soft); }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--accent); color: #fff; white-space: nowrap; }
+  .better { color: var(--good); }
+  .muted { color: var(--muted); }
+  audio { height: 32px; width: 190px; }
+  .wrap { overflow-x: auto; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); }
+  .drop.over { border-color: var(--accent); color: var(--accent); }
+  .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .preset { display: block; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; cursor: pointer; }
+  .preset input { margin-right: 6px; }
+  .preset b { font-weight: 600; }
+  .preset span { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .preset.on { border-color: var(--accent); background: var(--accent-soft); }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--muted); }
+  .bar { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; margin: 12px 0 6px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+  #progress, #done { display: none; }
+  #done { margin-top: 12px; }
+  .hide-detail .detail { display: none; }
+  tr.panel td { background: var(--bg); }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px 24px; margin: 6px 0 12px; }
+  .slider { font-size: 14px; }
+  .sl-head { display: flex; justify-content: space-between; }
+  .sl-head b { font-weight: 500; }
+  .sl-row { display: grid; grid-template-columns: 3.5em 1fr 3.5em; gap: 6px; align-items: center; }
+  .sl-row input { width: 100%; }
+  .sl-row .end:last-child { text-align: right; }
+  .v { font-variant-numeric: tabular-nums; color: var(--accent); }
+  .end { color: var(--muted); font-size: 12px; }
+  .tuned { font-size: 12px; color: var(--accent); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>声音统一</h1>
+  <p class="sub">把多段录音或视频的音量和音色调成一致，并去掉底噪。选一段作为主音色，其余向它靠拢。全部在本机处理，不联网。</p>
+
+  <div class="card">
+    <h2><span class="n">1</span>添加文件（可以一次添加很多个）</h2>
+    <div class="drop" id="drop">把音频或视频文件（或整个文件夹）拖到这里</div>
+    <div class="row" style="margin-top:12px">
+      <button id="pickFiles">选择文件…</button>
+      <button id="pickDir">选择整个文件夹…</button>
+      <input type="file" id="files" multiple accept="audio/*,video/*,.wav,.mkv,.mov,.flac,.m4a" hidden>
+      <input type="file" id="dir" webkitdirectory multiple hidden>
+      <button id="demo">载入演示音频</button>
+      <button id="clear">清空列表</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">2</span>选主音色（其他文件向它看齐）</h2>
+    <div class="row">
+      <label>以谁为准 <select id="refSel"></select></label>
+      <button id="saveVoice" title="以后不用再带上这段录音，直接选它当主音色">☆ 存为常用主音色</button>
+      <button id="delVoice" class="link" hidden>删除这个常用主音色</button>
+      <button id="compare" title="同一句话生成了好几条时，用它挑出最像主音色的那条">比一比哪段最像主音色</button>
+    </div>
+    <p class="hint">默认以第一个文件为准，也可以在下面的列表里点“设为主音色”。经常用同一个声音时，可以把主音色存起来，以后只添加新片段、直接选它即可。同一句话生成了好几条时，点“比一比”给每段打分，挑分数最高的。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">3</span>选处理方案（不确定就用推荐）</h2>
+    <div class="presets" id="presets"></div>
+    <div class="row" style="margin-top:14px">
+      <label>音量 <select id="lufs"></select></label>
+      <span id="customNote" class="muted" hidden>当前：自定义设置</span>
+    </div>
+    <details>
+      <summary>高级设置（一般不用改）</summary>
+      <div class="row" style="margin-top:12px">
+        <label>降噪强度 <input type="range" id="denoise" min="0" max="1" step="0.05"> <span id="denoiseV"></span></label>
+        <label>音色匹配 <input type="range" id="eq" min="0" max="1" step="0.05"> <span id="eqV"></span></label>
+        <label title="比主音色“空”、混响多的段落，去掉多出来的混响尾音"><input type="checkbox" id="dereverb"> 混响对齐</label>
+        <label title="把各段的平均音高对齐到主音色"><input type="checkbox" id="pitch"> 音高对齐</label>
+        <label title="把各段的共振峰（嗓音的“胖瘦”）对齐到主音色"><input type="checkbox" id="formant"> 共振峰对齐</label>
+        <label title="已经拼好的成片：在停顿处切开，每句单独对齐"><input type="checkbox" id="segment"> 逐句模式</label>
+        <button class="link" id="resetPreset">恢复推荐设置</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2><span class="n">4</span>开始处理</h2>
+    <div class="row">
+      <button class="primary big" id="run" disabled>开始处理</button>
+      <span id="runNote" class="muted">先添加文件</span>
+    </div>
+    <div id="progress">
+      <div class="bar"><div id="barFill"></div></div>
+      <div id="progressText" class="muted"></div>
+    </div>
+    <div id="done">
+      <div class="row">
+        <span>✓ <span id="doneText"></span></span>
+        <button id="openOut">打开输出文件夹</button>
+      </div>
+      <div class="hint" id="outPath"></div>
+    </div>
+  </div>
+
+  <div class="card wrap hide-detail" id="tableCard">
+    <div class="row" style="justify-content:space-between;margin-bottom:6px">
+      <b id="countText">文件列表</b>
+      <label class="muted" style="font-size:13px"><input type="checkbox" id="showDetail"> 显示详细数据</label>
+    </div>
+    <table>
+      <thead><tr>
+        <th></th><th>文件</th><th>时长</th><th>像不像主音色</th><th>音量 (LUFS)</th><th>音色差 (dB)</th>
+        <th class="detail">信噪比 (dB)</th><th class="detail">音高差 (半音)</th><th class="detail">混响尾音 (ms)</th>
+        <th>原始</th><th>处理后</th><th>微调</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="hint">音量越接近主音色越好；音色差是与主音色的频谱差，越接近 0 越一致。勾选“显示详细数据”可以看信噪比、音高差和混响尾音。</p>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (v, d = 1) => (v === null || v === undefined || !Number.isFinite(v) ? '—' : (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d));
+const MEDIA = /\.(wav|mp3|m4a|aac|flac|ogg|opus|wma|mp4|mov|mkv|m4v|avi|webm|flv|ts|mts)$/i;
+const VIDEO = /\.(mp4|mov|mkv|m4v|avi|webm|flv|ts|mts)$/i;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* 无痕模式 */ } } };
+
+let info = { ffmpeg: false, presets: [], loudness: [], defaultPreset: 'ai' };
+let items = []; // { id, name, seconds, lufs, snrDb, video, result?, status? }
+let voices = [];
+let refSel = ''; // 'file:<id>' | 'voice:<id>' | 'avg'
+let preset = null; // 预设 id；null 表示自定义
+let busy = false;
+let lastOutDir = null;
+
+// ---------- 预设 ----------
+const SETTING_IDS = ['denoise', 'eq', 'dereverb', 'pitch', 'formant', 'segment'];
+function settings() {
+  return { denoise: Number($('denoise').value), eq: Number($('eq').value), dereverb: $('dereverb').checked ? 1 : 0,
+    pitch: $('pitch').checked ? 1 : 0, formant: $('formant').checked ? 1 : 0, segment: $('segment').checked };
+}
+function setControls(s) {
+  $('denoise').value = s.denoise; $('eq').value = s.eq;
+  $('dereverb').checked = s.dereverb > 0; $('pitch').checked = s.pitch > 0; $('formant').checked = s.formant > 0; $('segment').checked = !!s.segment;
+}
+function syncPresetUi() {
+  document.querySelectorAll('input[name=preset]').forEach((el) => { el.checked = el.value === preset; el.closest('.preset').classList.toggle('on', el.checked); });
+  $('customNote').hidden = preset !== null;
+  $('denoiseV').textContent = Number($('denoise').value).toFixed(2);
+  $('eqV').textContent = Number($('eq').value).toFixed(2);
+  store.set('vu.preset', preset ?? 'custom');
+  store.set('vu.custom', JSON.stringify(settings()));
+}
+function applyPreset(id) {
+  const p = info.presets.find((x) => x.id === id);
+  if (!p) return;
+  preset = id;
+  setControls(p.settings);
+  syncPresetUi();
+}
+function buildPresetUi() {
+  $('presets').innerHTML = info.presets.map((p) => `<label class="preset"><input type="radio" name="preset" value="${p.id}"><b>${esc(p.name)}</b><span>${esc(p.desc)}</span></label>`).join('');
+  document.querySelectorAll('input[name=preset]').forEach((el) => el.onchange = () => applyPreset(el.value));
+  $('lufs').innerHTML = info.loudness.map((l) => `<option value="${l.value}">${esc(l.name)}</option>`).join('');
+  const savedLufs = store.get('vu.lufs');
+  if (savedLufs && info.loudness.some((l) => String(l.value) === savedLufs)) $('lufs').value = savedLufs;
+  $('lufs').onchange = () => store.set('vu.lufs', $('lufs').value);
+  for (const id of SETTING_IDS) {
+    $(id).addEventListener(id === 'denoise' || id === 'eq' ? 'input' : 'change', () => { preset = null; syncPresetUi(); });
+  }
+  const saved = store.get('vu.preset');
+  applyPreset(info.presets.some((p) => p.id === saved) ? saved : info.defaultPreset);
+  if (saved === 'custom') {
+    try { setControls(JSON.parse(store.get('vu.custom'))); preset = null; syncPresetUi(); } catch { /* 用推荐 */ }
+  }
+}
+$('resetPreset').onclick = () => { applyPreset(info.defaultPreset); $('lufs').value = info.loudness[0].value; store.set('vu.lufs', $('lufs').value); };
+
+// ---------- 主音色 ----------
+function renderRefSel() {
+  // 还没选过（或选的文件被移除了）时，默认以第一个文件为准。
+  const valid = refSel === 'avg' || items.some((i) => 'file:' + i.id === refSel) || voices.some((v) => 'voice:' + v.id === refSel);
+  if (!valid) refSel = items.length ? 'file:' + items[0].id : '';
+  const opt = (v, t) => `<option value="${v}" ${v === (refSel || 'avg') ? 'selected' : ''}>${esc(t)}</option>`;
+  $('refSel').innerHTML =
+    (items.length ? `<optgroup label="本次添加的文件">${items.map((i) => opt('file:' + i.id, i.name)).join('')}</optgroup>` : '')
+    + (voices.length ? `<optgroup label="常用主音色">${voices.map((v) => opt('voice:' + v.id, '★ ' + v.name)).join('')}</optgroup>` : '')
+    + `<optgroup label="其他">${opt('avg', '所有文件的平均音色')}</optgroup>`;
+  $('refSel').disabled = busy;
+  $('saveVoice').disabled = busy || !refSel.startsWith('file:');
+  $('delVoice').hidden = !refSel.startsWith('voice:');
+}
+$('refSel').onchange = () => { refSel = $('refSel').value; render(); };
+async function loadVoices() { voices = await (await fetch('/api/voices')).json(); render(); }
+$('saveVoice').onclick = async () => {
+  const it = items.find((i) => 'file:' + i.id === refSel);
+  if (!it) return;
+  const name = prompt('给这个主音色起个名字：', it.name);
+  if (!name) return;
+  $('saveVoice').disabled = true; $('saveVoice').textContent = '正在保存…';
+  const res = await fetch('/api/voices', { method: 'POST', body: JSON.stringify({ fromId: it.id, name, denoise: settings().denoise }) });
+  const j = await res.json();
+  $('saveVoice').textContent = '☆ 存为常用主音色'; render();
+  if (!res.ok) return alert(j.error);
+  await loadVoices();
+  alert(`已保存“${j.name}”。以后在“以谁为准”里选“★ ${j.name}”即可，不用再添加这段录音。`);
+};
+$('delVoice').onclick = async () => {
+  const v = voices.find((x) => 'voice:' + x.id === refSel);
+  if (!v || !confirm(`删除常用主音色“${v.name}”？`)) return;
+  await fetch('/api/voices/' + v.id, { method: 'DELETE' });
+  refSel = '';
+  await loadVoices();
+};
+
+// ---------- 文件列表 ----------
+function render() {
+  renderRefSel();
+  for (const id of ['run', 'pickFiles', 'pickDir', 'demo', 'clear', 'compare']) $(id).disabled = busy;
+  $('run').disabled = busy || items.length === 0;
+  $('runNote').textContent = items.length ? `共 ${items.length} 个文件，处理完自动保存` : '先添加文件';
+  $('countText').textContent = items.length ? `文件列表（${items.length} 个）` : '文件列表';
+  if (!items.length) { $('rows').innerHTML = '<tr><td colspan="12" class="muted">还没有文件</td></tr>'; return; }
+  const refId = refSel.startsWith('file:') ? refSel.slice(5) : null;
+  $('rows').innerHTML = items.map((it) => {
+    const r = it.result;
+    const isRef = it.id === refId;
+    const arrow = (b, a, better) => r ? `${fmt(b)} → <b class="${better ? 'better' : ''}">${fmt(a)}</b>` : fmt(b);
+    let after = '';
+    if (r) after = `<audio controls preload="none" src="/api/audio/${r.outputId}"></audio><br>${r.video ? `<a href="/api/video/${r.outputId}" download>下载视频</a> · ` : ''}<a href="/api/audio/${r.outputId}" download="${esc(it.name)}-统一.wav">下载音频</a>`;
+    else if (it.status) after = `<span class="muted">${esc(it.status)}</span>`;
+    return `<tr class="${isRef ? 'ref' : ''}">
+      <td>${isRef ? '<span class="badge">主音色</span>' : `<button class="link" data-ref="${it.id}" ${busy ? 'disabled' : ''}>设为主音色</button>`}</td>
+      <td>${it.video ? '🎬 ' : ''}${esc(it.name)}</td>
+      <td class="num">${fmt(it.seconds)} 秒</td>
+      <td class="num">${isRef ? '—' : simText(it.sim)}</td>
+      <td class="num">${r ? `${fmt(r.before.lufs)} → <b>${fmt(r.after.lufs)}</b>` : fmt(it.lufs)}</td>
+      <td class="num">${r && !r.isReference ? arrow(r.before.timbreDiffDb, r.after.timbreDiffDb, r.after.timbreDiffDb < r.before.timbreDiffDb) : '—'}</td>
+      <td class="num detail">${r ? arrow(r.before.snrDb, r.after.snrDb, r.after.snrDb > r.before.snrDb) : fmt(it.snrDb)}</td>
+      <td class="num detail">${r ? `${arrow(r.before.pitchSt, r.after.pitchSt, Math.abs(r.after.pitchSt) < Math.abs(r.before.pitchSt))}${r.segments > 1 ? `<br><span class="muted">${r.segments} 句</span>` : ''}` : '—'}</td>
+      <td class="num detail">${r ? `${fmt(r.before.reverbMs, 0)} → <b class="${r.after.reverbMs < r.before.reverbMs - 10 ? 'better' : ''}">${fmt(r.after.reverbMs, 0)}</b>` : '—'}</td>
+      <td><audio controls preload="none" src="/api/audio/${it.id}"></audio></td>
+      <td>${after}</td>
+      <td style="white-space:nowrap"><button class="link" data-tune="${it.id}" ${busy ? 'disabled' : ''}>🎚 调音色</button>${isNeutralM(it.manual) ? '' : '<br><span class="tuned">已手动调整</span>'}
+        <br><button class="link" data-del="${it.id}" title="从列表移除" ${busy ? 'disabled' : ''}>✕ 移除</button></td>
+    </tr>${it.open ? panelHtml(it) : ''}`;
+  }).join('');
+  bindPanels();
+  document.querySelectorAll('[data-tune]').forEach((el) => el.onclick = () => { const it = items.find((i) => i.id === el.dataset.tune); it.open = !it.open; render(); });
+  document.querySelectorAll('[data-ref]').forEach((el) => el.onclick = () => { refSel = 'file:' + el.dataset.ref; items.forEach((i) => { i.sim = null; }); render(); });
+  document.querySelectorAll('[data-del]').forEach((el) => el.onclick = () => {
+    fetch('/api/item/' + el.dataset.del, { method: 'DELETE' });
+    items = items.filter((i) => i.id !== el.dataset.del);
+    render();
+  });
+}
+// ---------- 手动调音色 ----------
+// 像变声软件一样按耳朵调：在自动统一之后再调，处理和试听都会带上。
+const isNeutralM = (m) => !m || Object.values(m).every((v) => !Number(v));
+const fmtV = (c, v) => `${v > 0 ? '+' : ''}${Number(v).toFixed(c.step < 1 ? 1 : 0)}`;
+function panelHtml(it) {
+  const m = it.manual || {};
+  const sl = (c) => `<div class="slider"><div class="sl-head"><b>${c.name}</b><span class="v" id="v-${it.id}-${c.key}">${fmtV(c, m[c.key] || 0)} ${c.unit}</span></div>
+    <div class="sl-row"><span class="end">${c.low}</span><input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${m[c.key] || 0}" data-m="${it.id}" data-k="${c.key}" ${busy ? 'disabled' : ''}><span class="end">${c.high}</span></div></div>`;
+  const sugg = it.sim && Math.abs(it.sim.formantPct) >= 3 ? `<button class="link" data-sugg="${it.id}">按主音色给个建议值</button>` : '';
+  return `<tr class="panel"><td colspan="12">
+    <div class="muted" style="font-size:13px">先选好主音色和方案，再在这里微调这一段。调完点“试听”，满意后点上面的“开始处理”，调整会一起生效。</div>
+    <div class="sliders">${(info.manualControls || []).map(sl).join('')}</div>
+    <div class="row">
+      <button class="primary" data-prev="${it.id}" ${busy ? 'disabled' : ''}>▶ 试听调整后</button>
+      <audio controls id="pa-${it.id}" ${it.previewId ? `src="/api/audio/${it.previewId}"` : ''}></audio>
+      <button data-reset="${it.id}" ${busy ? 'disabled' : ''}>恢复默认</button>
+      <button data-all="${it.id}" ${busy ? 'disabled' : ''}>这组设置用到所有文件</button>
+      ${sugg}
+      <span class="muted" id="ps-${it.id}"></span>
+    </div></td></tr>`;
+}
+function bindPanels() {
+  document.querySelectorAll('[data-m]').forEach((el) => el.oninput = () => {
+    const it = items.find((i) => i.id === el.dataset.m), c = info.manualControls.find((x) => x.key === el.dataset.k);
+    it.manual = { ...(it.manual || {}), [c.key]: Number(el.value) };
+    $(`v-${it.id}-${c.key}`).textContent = `${fmtV(c, el.value)} ${c.unit}`;
+  });
+  document.querySelectorAll('[data-m]').forEach((el) => el.onchange = () => render());
+  document.querySelectorAll('[data-reset]').forEach((el) => el.onclick = () => { items.find((i) => i.id === el.dataset.reset).manual = null; render(); });
+  document.querySelectorAll('[data-all]').forEach((el) => el.onclick = () => {
+    const src = items.find((i) => i.id === el.dataset.all).manual;
+    const refId = refSel.startsWith('file:') ? refSel.slice(5) : null;
+    items.forEach((i) => { if (i.id !== refId) i.manual = src ? { ...src } : null; });
+    render();
+  });
+  document.querySelectorAll('[data-sugg]').forEach((el) => el.onclick = () => {
+    // 建议值：嗓音粗细补回约一半的共振峰偏差；音调不动（升降调容易不自然）。
+    const it = items.find((i) => i.id === el.dataset.sugg);
+    const f = Math.max(-10, Math.min(10, Math.round(it.sim.formantPct * 0.5)));
+    it.manual = { ...(it.manual || {}), formantPct: f };
+    render();
+  });
+  document.querySelectorAll('[data-prev]').forEach((el) => el.onclick = async () => {
+    const it = items.find((i) => i.id === el.dataset.prev);
+    el.disabled = true; $(`ps-${it.id}`).textContent = '正在生成试听…';
+    const res = await fetch('/api/preview', { method: 'POST', body: JSON.stringify({
+      id: it.id, refId: refSel.startsWith('file:') ? refSel.slice(5) : null, voiceId: refSel.startsWith('voice:') ? refSel.slice(6) : null,
+      lufs: $('lufs').value, ...settings(), manualOne: it.manual || {},
+    }) });
+    const j = await res.json();
+    el.disabled = false;
+    if (!res.ok) { $(`ps-${it.id}`).textContent = j.error; return; }
+    it.previewId = j.outputId;
+    $(`ps-${it.id}`).textContent = it.manual && !isNeutralM(it.manual) ? '已按你的调整生成' : '这是只用自动统一的效果';
+    const a = $(`pa-${it.id}`); a.src = `/api/audio/${j.outputId}`; a.play().catch(() => {});
+  });
+}
+
+// 像不像主音色：80 分以上很像；60 分以下处理后也难完全一样，最好重新生成。
+function simText(s) {
+  if (!s) return '<span class="muted">—</span>';
+  if (s.pending) return '<span class="muted">比较中…</span>';
+  const [label, cls] = s.score >= 80 ? ['很像', 'better'] : s.score >= 60 ? ['一般', ''] : ['不太像', 'muted'];
+  const tip = `音色差 ${fmt(s.timbreDb)} dB，共振峰 ${fmt(s.formantPct)}%，音高 ${fmt(s.pitchSt)} 半音`;
+  return `<span title="${tip}"><b class="${cls}">${s.score} 分</b> ${label}${s.score < 60 ? '<br><span class="muted" style="font-size:12px">建议重新生成</span>' : ''}</span>`;
+}
+$('compare').onclick = async () => {
+  const refId = refSel.startsWith('file:') ? refSel.slice(5) : null, voiceId = refSel.startsWith('voice:') ? refSel.slice(6) : null;
+  if (!refId && !voiceId) return alert('先选一个主音色（不能是“平均音色”）');
+  const todo = items.filter((i) => i.id !== refId);
+  busy = true; todo.forEach((i) => { i.sim = { pending: true }; }); render();
+  for (const [k, it] of todo.entries()) {
+    showProgress(k / todo.length, `正在比较第 ${k + 1}/${todo.length} 个：${it.name}`);
+    const res = await fetch('/api/similarity', { method: 'POST', body: JSON.stringify({ ids: [it.id], refId, voiceId }) });
+    const j = await res.json();
+    if (!res.ok) { alert(j.error); it.sim = null; break; }
+    it.sim = j[0];
+    render();
+  }
+  busy = false; hideProgress(); render();
+};
+$('refSel').addEventListener('change', () => { items.forEach((i) => { i.sim = null; }); render(); });
+$('showDetail').onchange = () => $('tableCard').classList.toggle('hide-detail', !$('showDetail').checked);
+
+// ---------- 进度 ----------
+function showProgress(fraction, text) {
+  $('progress').style.display = 'block';
+  $('barFill').style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
+  $('progressText').textContent = text;
+}
+const hideProgress = () => { $('progress').style.display = 'none'; };
+
+// ---------- 添加文件 ----------
+// 没有 ffmpeg 时，非 WAV 音频交给浏览器自带解码器（mp3、m4a、flac、ogg 等），再转成 32 位浮点 WAV 上传。
+function audioBufferToWav(ab) {
+  const nc = ab.numberOfChannels, len = ab.length, data = new DataView(new ArrayBuffer(44 + len * nc * 4));
+  const str = (o, s) => [...s].forEach((c, i) => data.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF'); data.setUint32(4, 36 + len * nc * 4, true); str(8, 'WAVE'); str(12, 'fmt ');
+  data.setUint32(16, 16, true); data.setUint16(20, 3, true); data.setUint16(22, nc, true);
+  data.setUint32(24, ab.sampleRate, true); data.setUint32(28, ab.sampleRate * nc * 4, true);
+  data.setUint16(32, nc * 4, true); data.setUint16(34, 32, true); str(36, 'data'); data.setUint32(40, len * nc * 4, true);
+  const chs = [...Array(nc)].map((_, c) => ab.getChannelData(c));
+  for (let i = 0, o = 44; i < len; i++) for (let c = 0; c < nc; c++, o += 4) data.setFloat32(o, chs[c][i], true);
+  return data.buffer;
+}
+
+// 用 XMLHttpRequest 是为了拿到上传进度。
+function send(name, body, onUp) {
+  return new Promise((ok, fail) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', '/api/upload');
+    x.setRequestHeader('x-filename', encodeURIComponent(name));
+    x.upload.onprogress = (e) => e.lengthComputable && onUp(e.loaded / e.total);
+    x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch { /* 空 */ } ok({ ok: x.status === 200, j }); };
+    x.onerror = () => fail(new Error('连接本机服务失败，程序是否已关闭？'));
+    x.send(body);
+  });
+}
+
+async function upload(file, onUp) {
+  if (/\.wav$/i.test(file.name) || info.ffmpeg) {
+    const r = await send(file.name, file, onUp);
+    if (r.ok) return r.j;
+    if (info.ffmpeg || /\.wav$/i.test(file.name)) throw new Error(r.j.error || '读取失败');
+  }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const ab = await ctx.decodeAudioData(await file.arrayBuffer());
+  ctx.close();
+  const r = await send(file.name, audioBufferToWav(ab), onUp);
+  if (!r.ok) throw new Error(r.j.error || '读取失败');
+  return r.j;
+}
+
+async function addFiles(files) {
+  files = files.filter((f) => MEDIA.test(f.name)).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }));
+  if (!files.length) return alert('没有找到音频或视频文件');
+  if (!info.ffmpeg && files.some((f) => VIDEO.test(f.name))) alert('没有找到 ffmpeg，视频只能导出处理后的音频。');
+  busy = true; $('done').style.display = 'none'; render();
+  const failed = [];
+  for (const [i, f] of files.entries()) {
+    const label = `正在添加第 ${i + 1}/${files.length} 个：${f.name}`;
+    try {
+      const j = await upload(f, (u) => showProgress((i + u * 0.7) / files.length, u < 1 ? `${label}（上传 ${Math.round(u * 100)}%）` : `${label}（读取声音…）`));
+      items.push({ ...j, video: !!j.video });
+    } catch (e) { failed.push(`${f.name}：${e.message}`); }
+    showProgress((i + 1) / files.length, label);
+    render();
+  }
+  busy = false; hideProgress(); render();
+  if (failed.length) alert(`有 ${failed.length} 个文件无法读取：\n` + failed.join('\n'));
+}
+
+$('pickFiles').onclick = () => $('files').click();
+$('pickDir').onclick = () => $('dir').click();
+$('files').onchange = (e) => { addFiles([...e.target.files]); e.target.value = ''; };
+$('dir').onchange = (e) => { addFiles([...e.target.files]); e.target.value = ''; };
+
+// 拖进来的可能是文件夹：递归读出里面的文件。
+async function filesFromDrop(dt) {
+  const entries = [...dt.items].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const out = [];
+  const walk = async (en) => {
+    if (en.isFile) out.push(await new Promise((ok, fail) => en.file(ok, fail)));
+    else if (en.isDirectory) {
+      const reader = en.createReader();
+      for (;;) {
+        const batch = await new Promise((ok, fail) => reader.readEntries(ok, fail));
+        if (!batch.length) break;
+        for (const e of batch) await walk(e);
+      }
+    }
+  };
+  for (const en of entries) await walk(en);
+  return out;
+}
+const drop = $('drop');
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = async (e) => { e.preventDefault(); drop.classList.remove('over'); if (!busy) addFiles(await filesFromDrop(e.dataTransfer)); };
+$('clear').onclick = () => { items.forEach((i) => fetch('/api/item/' + i.id, { method: 'DELETE' })); items = []; $('done').style.display = 'none'; render(); };
+$('demo').onclick = async () => {
+  const list = await (await fetch('/api/demo', { method: 'POST' })).json();
+  items.push(...list); refSel = 'file:' + list[0].id; render();
+};
+
+// ---------- 处理 ----------
+$('run').onclick = async () => {
+  busy = true; $('done').style.display = 'none';
+  items.forEach((i) => { i.result = null; i.status = '等待处理'; });
+  showProgress(0, '准备中…');
+  render();
+  const ids = items.map((i) => i.id);
+  const res = await fetch('/api/process', { method: 'POST', body: JSON.stringify({
+    ids, refId: refSel.startsWith('file:') ? refSel.slice(5) : null, voiceId: refSel.startsWith('voice:') ? refSel.slice(6) : null,
+    lufs: $('lufs').value, ...settings(), manual: Object.fromEntries(items.filter((i) => !isNeutralM(i.manual)).map((i) => [i.id, i.manual])),
+  }) });
+  const j = await res.json();
+  if (!res.ok) { alert(j.error); busy = false; items.forEach((i) => { i.status = null; }); hideProgress(); render(); return; }
+  const t0 = performance.now();
+  for (;;) {
+    await new Promise((ok) => setTimeout(ok, 400));
+    let job;
+    try { job = await (await fetch('/api/job/' + j.jobId)).json(); } catch { alert('连接本机服务失败，程序是否已关闭？'); break; }
+    if (job.state === 'running') {
+      const secs = Math.round((performance.now() - t0) / 1000);
+      const it = job.file === null ? null : items.find((i) => i.id === ids[job.file]);
+      showProgress(job.fraction, `${job.stage}${it ? `：${it.name}（第 ${job.file + 1}/${job.total} 个）` : ''} · ${Math.round(job.fraction * 100)}% · 已用 ${secs} 秒`);
+      if (it) it.status = `${job.stage}中…`;
+      render();
+      continue;
+    }
+    if (job.state === 'error') { alert(`处理失败：${job.error}`); items.forEach((i) => { i.status = null; }); break; }
+    job.results.forEach((r) => { const it = items.find((i) => i.id === r.inputId); if (it) { it.result = r; it.status = null; } });
+    lastOutDir = job.outDir;
+    $('doneText').textContent = `${job.results.length} 个文件处理完成，用时 ${job.seconds.toFixed(1)} 秒，已自动保存`;
+    $('outPath').textContent = `保存位置：${job.outDir}`;
+    $('done').style.display = 'block';
+    break;
+  }
+  busy = false; hideProgress(); render();
+};
+$('openOut').onclick = () => fetch('/api/open-output', { method: 'POST', body: JSON.stringify({ dir: lastOutDir }) });
+
+fetch('/api/info').then((r) => r.json()).then((j) => { info = j; buildPresetUi(); loadVoices(); });
+render();
+</script>
+</body>
+</html>

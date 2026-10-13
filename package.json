@@ -1,0 +1,13 @@
+{
+  "name": "voice-unify",
+  "version": "0.1.0",
+  "description": "离线统一多段录音的音量与音色，并降噪（Node.js 标准库，零依赖）",
+  "type": "module",
+  "bin": { "voice-unify": "./cli.mjs" },
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "ui": "node cli.mjs ui",
+    "demo": "node cli.mjs demo",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

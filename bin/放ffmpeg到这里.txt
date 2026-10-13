@@ -1,0 +1,1 @@
+把 ffmpeg 可执行文件放在这里（Windows 为 ffmpeg.exe，macOS/Linux 为 ffmpeg），处理视频时会优先使用它。见 README 的“处理视频”一节。

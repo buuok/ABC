@@ -1,0 +1,18 @@
+# AI 模型（已放弃，不进仓库）
+models/
+# 生成的演示文件和测试输出
+demo/
+demo-ai/
+demo-video/
+*-output.txt
+# 真实素材和处理结果
+*为准/
+真实片段测试/
+输出/
+数据/
+# ffmpeg 二进制和打包产物
+bin/ffmpeg*
+dist/
+*.zip
+node_modules/
+.DS_Store
